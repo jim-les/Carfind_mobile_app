@@ -45,7 +45,6 @@ const App = () => {
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
-        checkAuthStatus();
         await AsyncStorage.removeItem('sessionCookie'); // Clear invalid session if necessary
       }
     } catch (error) {
