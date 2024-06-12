@@ -37,17 +37,9 @@ const App = () => {
 
   // Function to check authentication status
   const checkAuthStatus = async () => {
-    setIsLoading(false);
-
     try {
       const isValidSession = await validateSession();
-      if (isValidSession) {
-        setIsAuthenticated(true);
-      } else {
-        setIsAuthenticated(false);
-        checkAuthStatus();
-        await AsyncStorage.removeItem('sessionCookie'); // Clear invalid session if necessary
-      }
+      setIsAuthenticated(isValidSession);
     } catch (error) {
       console.error('Error checking authentication status:', error);
       setIsAuthenticated(false);
@@ -56,10 +48,11 @@ const App = () => {
     }
   };
 
-  // Check authentication status on component mount
+  // Check authentication status on component mount and set up interval for continuous checking
   useEffect(() => {
     checkAuthStatus();
-
+    const interval = setInterval(checkAuthStatus, 60000); // Check every minute (adjust as needed)
+    return () => clearInterval(interval); // Cleanup on unmount
   }, []);
 
   // Show a loading spinner while checking authentication
