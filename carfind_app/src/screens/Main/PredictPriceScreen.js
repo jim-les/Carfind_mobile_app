@@ -130,7 +130,7 @@ const ModalComponent = ({ isModalVisible, handleModalClose, predictedPrice }) =>
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
+    paddingVertical: 20,
   },
   title: {
     fontSize: 24,
@@ -161,6 +161,7 @@ const styles = StyleSheet.create({
     paddingVertical: 17,
     paddingHorizontal: 20,
     borderRadius: 8,
+    marginHorizontal: 20,
     alignItems: "center",
     marginBottom: '10%',
   },
@@ -175,8 +176,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   logo: {
-    width: 100,
-    height: 100,
+    width: "100%",
+    height: 400,
     alignSelf: 'center',
     marginBottom: 20,
   },

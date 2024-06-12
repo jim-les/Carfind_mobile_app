@@ -8,6 +8,12 @@
         "projectId": "7c69e107-ca1d-424b-93d0-e9c46cd08aee"
       }
     },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#FFFFFF"
+      }
+    },
     "plugins": [
       "expo-secure-store"
     ]
