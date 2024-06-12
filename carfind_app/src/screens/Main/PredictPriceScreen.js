@@ -1,12 +1,8 @@
-// src/screens/Main/PredictPriceScreen.js
-
-import React, { useState, useEffect } from 'react';
-import { View, TextInput, Image, Button, StyleSheet,Modal, ScrollView, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import {Picker} from '@react-native-picker/picker';
-import navigation from '@react-navigation/native';
+import React, { useState } from 'react';
+import { View, TextInput, Image, StyleSheet, Modal, ScrollView, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
 import { base_url } from '../../Utils/config';
-import * as SecureStore from 'expo-secure-store';
 import predicted from '../../assets/predicted.png';
 
 const PredictPriceScreen = () => {
@@ -27,47 +23,39 @@ const PredictPriceScreen = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [predictedPrice, setPredictedPrice] = useState(null);
 
-
   const handlePredict = async () => {
     setIsPredict(true);
     setErrorMessage('');
-
+  
     try {
-      const token = await SecureStore.getItemAsync('userToken');
-
-      if (!token) {
-        setErrorMessage('User is not authenticated. Please log in.');
-        setIsPredict(false);
-        return;
-      }
-
-      await fetch(`${base_url}/predict`, {
+      const response = await fetch(`${base_url}/predict`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`, // Include token in header
         },
         body: JSON.stringify({
-          "make": "Toyota",
-          "model": "Land Cruiser",
-          "year": 2024,
-          "country_of_origin": "Japan",
-          "transmission": "Auto",
-          "engine_type": "Diesel",
-          "engine_size": 1.5,
-          "mileage": 209876,
-          "condition": "Poor",
-          "previous_owners": 2,
-          "additional_features": ""
+          make: make,
+          model: model,
+          year: parseInt(year) || 0,
+          country_of_origin: country,
+          transmission: transmission,
+          engine_type: engineType,
+          engine_size: parseFloat(engineSize) || 0,
+          mileage: parseFloat(mileage) || 0,
+          condition: condition,
+          previous_owners: parseInt(previousOwners) || 0,
+          additional_features: additionalFeatures
         }),
-      })
-      .then((response) => response.json())
-      .then((data) => {
+      });
+  
+      const data = await response.json();
+  
+      if (response.ok) {
         setPredictedPrice(data.prediction);
         setIsModalVisible(true);
-        console.log(data.predictedPrice)
-      })
-
+      } else {
+        setErrorMessage(data.message || 'Failed to predict price.');
+      }
     } catch (error) {
       setErrorMessage('An error occurred. Please try again.');
     } finally {
@@ -81,17 +69,17 @@ const PredictPriceScreen = () => {
 
   return (
     <ScrollView style={styles.container}>
-      <ModalComponent isModalVisible={isModalVisible} handleModalClose={handleModalClose} predictedPrice={predictedPrice} /> 
-      {errorMessage ? 
+      <ModalComponent isModalVisible={isModalVisible} handleModalClose={handleModalClose} predictedPrice={predictedPrice} />
+      {errorMessage ?
         <Modal visible={true} animationType="slide">
           <View style={styles.container}>
-            <Text style={styles.title}>{errorMessage}</Text>
+            <Text style={styles.errorMessage}>{errorMessage}</Text>
             <TouchableOpacity style={styles.button} onPress={() => setErrorMessage('')}>
               <Text style={styles.buttonText}>Close</Text>
             </TouchableOpacity>
           </View>
         </Modal>
-      : null}
+        : null}
 
       <Text style={styles.title}>Predict Vehicle Resale Price</Text>
       <TextInput style={styles.input} placeholder="Make" value={make} onChangeText={setMake} />
@@ -115,7 +103,7 @@ const PredictPriceScreen = () => {
       </Picker>
       <TextInput style={styles.input} placeholder="Previous Owners" value={previousOwners} onChangeText={setPreviousOwners} keyboardType="numeric" />
       <TextInput style={styles.input} placeholder="Additional Features" value={additionalFeatures} onChangeText={setAdditionalFeatures} />
-      <TouchableOpacity style={styles.button} onPress={handlePredict}>  
+      <TouchableOpacity style={styles.button} onPress={handlePredict}>
         <Text style={styles.buttonText}>
           {isPredict ? <ActivityIndicator size="small" color="white" /> : "Predict Price"}
         </Text>
@@ -125,19 +113,19 @@ const PredictPriceScreen = () => {
 };
 
 const ModalComponent = ({ isModalVisible, handleModalClose, predictedPrice }) => {
-  return(
+  return (
     <Modal visible={isModalVisible} animationType="slide">
-        <View style={styles.container}>
-          <Image source={predicted} style={styles.logo} />
-          <Text style={styles.title}>Predicted Price</Text>
-          <Text style={styles.title}>Shs. {predictedPrice}</Text>
-          <TouchableOpacity style={styles.button} onPress={handleModalClose}>
-            <Text style={styles.buttonText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-  )
-}
+      <View style={styles.container}>
+        <Image source={predicted} style={styles.logo} />
+        <Text style={styles.title}>Predicted Price</Text>
+        <Text style={styles.title}>Shs. {predictedPrice}</Text>
+        <TouchableOpacity style={styles.button} onPress={handleModalClose}>
+          <Text style={styles.buttonText}>Close</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -151,34 +139,46 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   input: {
-      height: 60,
-      borderColor: "gray",
-      borderWidth: 1,
-      marginBottom: 25,
-      paddingHorizontal: 25,
-      color: 'rgb(30, 20, 100)',
-      borderWidth: 0,
-      backgroundColor: "white",
-      shadowColor: "rgba(0, 0, 0, .7)",
-      shadowOffset: {
-          width: 5,
-          height: 5,
-      },
-      shadowOpacity: 10,
-      shadowRadius: 8,
-      elevation: 10,
+    height: 60,
+    borderColor: "gray",
+    borderWidth: 1,
+    marginBottom: 25,
+    paddingHorizontal: 25,
+    color: 'rgb(30, 20, 100)',
+    borderWidth: 0,
+    backgroundColor: "white",
+    shadowColor: "rgba(0, 0, 0, .7)",
+    shadowOffset: {
+      width: 5,
+      height: 5,
+    },
+    shadowOpacity: 10,
+    shadowRadius: 8,
+    elevation: 10,
   },
   button: {
-      backgroundColor: "rgb(30, 20, 100)",
-      paddingVertical: 17,
-      paddingHorizontal: 20,
-      borderRadius: 8,
-      alignItems: "center",
-      marginBottom: '10%',
+    backgroundColor: "rgb(30, 20, 100)",
+    paddingVertical: 17,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: '10%',
   },
   buttonText: {
-      color: "white",
-      fontSize: 18,
+    color: "white",
+    fontSize: 18,
+  },
+  errorMessage: {
+    fontSize: 18,
+    color: 'red',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  logo: {
+    width: 100,
+    height: 100,
+    alignSelf: 'center',
+    marginBottom: 20,
   },
 });
 

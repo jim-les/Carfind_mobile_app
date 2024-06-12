@@ -1,12 +1,15 @@
-from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Response, Form
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from passlib.context import CryptContext
 import sqlite3
-import jwt
-from datetime import datetime, timedelta
+import secrets
 from typing import Optional
 from main import *
+import joblib
+import pandas as pd
+import os
+import sklearn
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -18,17 +21,12 @@ cursor = conn.cursor()
 # Create table if not exists
 cursor.execute('''CREATE TABLE IF NOT EXISTS users
                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT,
+                username TEXT UNIQUE,
                 password TEXT)''')
 conn.commit()
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# JWT configuration
-SECRET_KEY = "mysecretkey"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 3000
 
 # Pydantic model for user input
 class User(BaseModel):
@@ -48,18 +46,15 @@ class CarDetails(BaseModel):
     previous_owners: int
     additional_features: str = ""
 
+# In-memory session storage
+sessions = {}
+
 # Function to verify password
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verifies the given password against the hashed password.
-    """
     return pwd_context.verify(plain_password, hashed_password)
 
 # Function to get user from database by username
 def get_user(username: str):
-    """
-    Retrieves user information from the database by username.
-    """
     cursor.execute("SELECT * FROM users WHERE username=?", (username,))
     user = cursor.fetchone()
     if user:
@@ -68,85 +63,47 @@ def get_user(username: str):
 
 # Function to create a new user
 def create_user(user: User):
-    """
-    Creates a new user with a hashed password.
-    """
     hashed_password = pwd_context.hash(user.password)
     cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (user.username, hashed_password))
     conn.commit()
     return {"username": user.username}
 
-# Function to create JWT token
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Creates a JWT token with an expiration time.
-    """
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+# Function to create session ID
+def create_session_id():
+    return secrets.token_hex(16)
 
-# OAuth2 scheme
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+# Dependency to get current user from session
+def get_current_user(request: Request):
+    session_id = request.cookies.get("session_id")
+    if not session_id or session_id not in sessions:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    return sessions[session_id]
 
-# Function to get current user from token
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    """
-    Gets the current user from the provided JWT token.
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-        token_data = {"username": username}
-    except jwt.PyJWTError:
-        raise credentials_exception
-    user = get_user(username=token_data["username"])
-    if user is None:
-        raise credentials_exception
-    return user
 
 # Login route
 @app.post("/login")
-async def login(user: User):
-    """
-    Authenticates the user and returns a JWT token if successful.
-    """
+async def login(user: User, response: Response):
     username = user.username
     password = user.password
+    
     db_user = get_user(username)
+    
+    if not db_user or not verify_password(password, db_user["password"]):
+        return {"status": "failed", "message": "Invalid username or password"}
+    
+    session_id = create_session_id()
+    sessions[session_id] = db_user
+    
+    # Set cookie in the response
+    response.set_cookie(key="session_id", value=session_id, httponly=True, max_age=3600)  # max_age is 1 hour
 
-    if not db_user:
-        return {"status": "failed", "message": "Invalid username or password"}
+    return {"status": "success", "message": "Logged in successfully"}
     
-    if not verify_password(password, db_user["password"]):
-        return {"status": "failed", "message": "Invalid username or password"}
-    
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": username}, expires_delta=access_token_expires
-    )
-    return {"status": "success", "token": access_token}
 
 # Register route
 @app.post("/register")
 async def register(user: User):
-    """
-    Registers a new user if the username does not already exist.
-    """
-    username = user.username
-    password = user.password
-    db_user = get_user(username)
+    db_user = get_user(user.username)
     if db_user:
         return {"status": "failed", "message": "User already exists"}
     create_user(user)
@@ -154,65 +111,83 @@ async def register(user: User):
 
 # Secure endpoint example
 @app.get("/secure-endpoint")
-async def read_secure_data(current_user: User = Depends(get_current_user)):
-    """
-    An example of a secure endpoint that requires authentication.
-    """
+async def read_secure_data(current_user: dict = Depends(get_current_user)):
     return {"message": "This is a secure endpoint", "user": current_user}
 
-# Predict car resale value
-@app.post("/predict")
-async def predict(car_details: CarDetails):
-    """
-    Predicts the resale value of a car based on its details.
-    """
-    car_data = {
-        'Make': car_details.make,
-        'Model': car_details.model,
-        'Year': car_details.year,
-        'Country of Origin': car_details.country_of_origin,
-        'Transmission': car_details.transmission,
-        'Engine Type': car_details.engine_type,
-        'Engine Size (L)': car_details.engine_size,
-        'Mileage (km)': car_details.mileage,
-        'Condition': car_details.condition,
-        'Previous Owners': car_details.previous_owners,
-        'Additional Features': car_details.additional_features
-    }
+class PredictionInput(BaseModel):
+    make: str
+    model: str
+    year: int
+    country_of_origin: str
+    transmission: str
+    engine_type: str
+    engine_size: float
+    mileage: float
+    condition: str
+    previous_owners: int
+    additional_features: str
+
+class PredictionOutput(BaseModel):
+    prediction: float
     
+@app.post("/predict", response_model=PredictionOutput)
+async def predict_price(data: PredictionInput):
     try:
-        prediction = make_prediction(car_data)
-        # return a repons to be read by react-native for the prediction
-        return {"prediction": prediction} 
-    
+        # Replace this with your actual prediction logic
+        predicted_price = your_prediction_function(data)  # Ensure this function returns a float or int
+
+        # Return a Pydantic model instance
+        return PredictionOutput(prediction=predicted_price)
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-class TokenRequest(BaseModel):
-    token: str
-    
-    
-# Validate token route
-@app.post("/validate-token")
-async def validate_token(token: TokenRequest):
-    """
-    Validates the provided JWT token.
-    """
-    # try:
-    # Decode the token
-    decoded_token = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    return {"status": "success", "message": "Token Is Valid"}
 
-    
+# load model
+model = joblib.load('trained_model.pkl')
+
+def your_prediction_function(data: PredictionInput) -> float:
+    # Convert input data to DataFrame
+    input_dict = {
+        "Make": data.make,
+        "Model": data.model,
+        "Year": data.year,
+        "Country of Origin": data.country_of_origin,
+        "Transmission": data.transmission,
+        "Engine Type": data.engine_type,
+        "Engine Size (L)": data.engine_size,
+        "Mileage (km)": data.mileage,
+        "Condition": data.condition,
+        "Previous Owners": data.previous_owners,
+        "Additional Features": data.additional_features
+    }
+    df = pd.DataFrame([input_dict])
+    # Make prediction
+    prediction = model.predict(df)[0]
+    return prediction
+
+# Logout route
+@app.post("/logout")
+async def logout(response: Response, current_user: dict = Depends(get_current_user)):
+    session_id = response.cookies.get("session_id")
+    if session_id in sessions:
+        del sessions[session_id]
+    response.delete_cookie(key="session_id")
+    return {"status": "success", "message": "Logged out successfully"}
+
+# Validate session route
+@app.get("/validate-session")
+async def validate_session(current_user: dict = Depends(get_current_user)):
+    return {"status": "success", "message": "Session is valid", "user": current_user}
 
 # Include this docstring
 """
-This FastAPI application implements user registration, authentication, and a secure endpoint for predicting car resale value.
+This FastAPI application implements user registration, authentication, and a secure endpoint for predicting car resale value without using JWT.
 - The `/register` endpoint allows new users to register.
-- The `/login` endpoint authenticates users and provides a JWT token.
-- The `/secure-endpoint` endpoint is a protected route that requires a valid token.
+- The `/login` endpoint authenticates users and creates a session.
+- The `/secure-endpoint` endpoint is a protected route that requires a valid session.
 - The `/predict` endpoint uses car details to predict the resale value, requiring authentication.
-- The `/validate-token` endpoint verifies the validity of a JWT token.
+- The `/validate-session` endpoint verifies the validity of a session.
 
-Dependencies include `FastAPI`, `pydantic`, `passlib`, and `jwt`. SQLite is used as the database.
+Dependencies include `FastAPI`, `pydantic`, `passlib`, and `sqlite3`.
 """
