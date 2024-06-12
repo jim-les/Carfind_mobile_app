@@ -1,0 +1,1 @@
+export const base_url = "https://jnnpdwlk-8000.uks1.devtunnels.ms"; 

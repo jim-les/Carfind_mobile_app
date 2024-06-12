@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "carfind_app_1",
+    "slug": "carfind_app_1",
+    "version": "1.0.0",
+    "extra": {
+      "eas": {
+        "projectId": "7c69e107-ca1d-424b-93d0-e9c46cd08aee"
+      }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  },
+  "name": "carfind_app_1"
+}
