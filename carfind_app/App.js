@@ -45,6 +45,7 @@ const App = () => {
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
+        checkAuthStatus();
         await AsyncStorage.removeItem('sessionCookie'); // Clear invalid session if necessary
       }
     } catch (error) {
@@ -53,7 +54,6 @@ const App = () => {
     } finally {
       setIsLoading(false);
     }
-    setTimeout(checkAuthStatus, 1000);
   };
 
   // Check authentication status on component mount
