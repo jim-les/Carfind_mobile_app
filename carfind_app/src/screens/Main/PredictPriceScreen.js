@@ -20,13 +20,38 @@ const PredictPriceScreen = () => {
   const navigation = useNavigation();
   const [errorMessage, setErrorMessage] = useState('');
   const [isPredict, setIsPredict] = useState(false);
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(true);
   const [predictedPrice, setPredictedPrice] = useState(null);
 
+  const [errors, setErrors] = useState({});
+
+  const validateInputs = () => {
+    const errors = {};
+
+    if (!make) errors.make = 'Make is required';
+    if (!model) errors.model = 'Model is required';
+    if (!year || isNaN(year)) errors.year = 'Valid year is required';
+    if (!country) errors.country = 'Country of origin is required';
+    if (!transmission) errors.transmission = 'Transmission type is required';
+    if (!engineType) errors.engineType = 'Engine type is required';
+    if (!engineSize || isNaN(engineSize)) errors.engineSize = 'Valid engine size is required';
+    if (!mileage || isNaN(mileage)) errors.mileage = 'Valid mileage is required';
+    if (!condition) errors.condition = 'Condition is required';
+    if (!previousOwners || isNaN(previousOwners)) errors.previousOwners = 'Valid number of previous owners is required';
+    if (!additionalFeatures) errors.additionalFeatures = 'Additional features are required';
+
+    setErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handlePredict = async () => {
+    if (!validateInputs()) {
+      return;
+    }
+
     setIsPredict(true);
     setErrorMessage('');
-  
+
     try {
       const response = await fetch(`${base_url}/predict`, {
         method: 'POST',
@@ -47,9 +72,9 @@ const PredictPriceScreen = () => {
           additional_features: additionalFeatures
         }),
       });
-  
+
       const data = await response.json();
-  
+
       if (response.ok) {
         setPredictedPrice(data.prediction);
         setIsModalVisible(true);
@@ -83,17 +108,33 @@ const PredictPriceScreen = () => {
 
       <Text style={styles.title}>Predict Vehicle Resale Price</Text>
       <TextInput style={styles.input} placeholder="Make" value={make} onChangeText={setMake} />
+      {errors.make && <Text style={styles.errorText}>{errors.make}</Text>}
+      
       <TextInput style={styles.input} placeholder="Model" value={model} onChangeText={setModel} />
+      {errors.model && <Text style={styles.errorText}>{errors.model}</Text>}
+      
       <TextInput style={styles.input} placeholder="Year" value={year} onChangeText={setYear} keyboardType="numeric" />
+      {errors.year && <Text style={styles.errorText}>{errors.year}</Text>}
+      
       <TextInput style={styles.input} placeholder="Country of Origin" value={country} onChangeText={setCountry} />
+      {errors.country && <Text style={styles.errorText}>{errors.country}</Text>}
+      
       <Picker selectedValue={transmission} style={styles.input} onValueChange={(itemValue) => setTransmission(itemValue)}>
         <Picker.Item label="Select Transmission" value="" />
         <Picker.Item label="Manual" value="Manual" />
         <Picker.Item label="Automatic" value="Automatic" />
       </Picker>
+      {errors.transmission && <Text style={styles.errorText}>{errors.transmission}</Text>}
+      
       <TextInput style={styles.input} placeholder="Engine Type" value={engineType} onChangeText={setEngineType} />
+      {errors.engineType && <Text style={styles.errorText}>{errors.engineType}</Text>}
+      
       <TextInput style={styles.input} placeholder="Engine Size (L)" value={engineSize} onChangeText={setEngineSize} keyboardType="numeric" />
+      {errors.engineSize && <Text style={styles.errorText}>{errors.engineSize}</Text>}
+      
       <TextInput style={styles.input} placeholder="Mileage (km)" value={mileage} onChangeText={setMileage} keyboardType="numeric" />
+      {errors.mileage && <Text style={styles.errorText}>{errors.mileage}</Text>}
+      
       <Picker selectedValue={condition} style={styles.input} onValueChange={(itemValue) => setCondition(itemValue)}>
         <Picker.Item label="Select Condition" value="" />
         <Picker.Item label="Poor" value="Poor" />
@@ -101,8 +142,14 @@ const PredictPriceScreen = () => {
         <Picker.Item label="Good" value="Good" />
         <Picker.Item label="Excellent" value="Excellent" />
       </Picker>
+      {errors.condition && <Text style={styles.errorText}>{errors.condition}</Text>}
+      
       <TextInput style={styles.input} placeholder="Previous Owners" value={previousOwners} onChangeText={setPreviousOwners} keyboardType="numeric" />
+      {errors.previousOwners && <Text style={styles.errorText}>{errors.previousOwners}</Text>}
+      
       <TextInput style={styles.input} placeholder="Additional Features" value={additionalFeatures} onChangeText={setAdditionalFeatures} />
+      {errors.additionalFeatures && <Text style={styles.errorText}>{errors.additionalFeatures}</Text>}
+      
       <TouchableOpacity style={styles.button} onPress={handlePredict}>
         <Text style={styles.buttonText}>
           {isPredict ? <ActivityIndicator size="small" color="white" /> : "Predict Price"}
@@ -131,6 +178,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingVertical: 20,
+    paddingHorizontal: 20,
   },
   title: {
     fontSize: 24,
@@ -154,33 +202,34 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 10,
     shadowRadius: 8,
-    elevation: 10,
+    elevation: 6,
   },
   button: {
-    backgroundColor: "rgb(30, 20, 100)",
-    paddingVertical: 17,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    marginHorizontal: 20,
-    alignItems: "center",
-    marginBottom: '10%',
+    backgroundColor: 'black',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 10,
   },
   buttonText: {
-    color: "white",
+    color: 'white',
     fontSize: 18,
-  },
-  errorMessage: {
-    fontSize: 18,
-    color: 'red',
-    textAlign: 'center',
-    marginBottom: 20,
   },
   logo: {
-    width: "100%",
-    height: 400,
-    alignSelf: 'center',
+    width: 150,
+    height: 150,
     marginBottom: 20,
+    alignSelf: 'center',
   },
+  errorMessage: {
+    color: 'red',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: 'red',
+    marginBottom: 10,
+  }
 });
 
 export default PredictPriceScreen;

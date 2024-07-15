@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import login from "../../assets/login.png";
 import { base_url } from "../../Utils/config";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAppContext } from "../../Utils/AppContext";
 
 const LoginScreen = () => {
   const [email, setEmail] = useState("");
@@ -12,6 +13,7 @@ const LoginScreen = () => {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const navigation = useNavigation();
   const [isLogin, setIsLogin] = useState(false);
+  const { dispatch } = useAppContext();
 
   const validateEmail = (email) => {
     const re = /\S+@\S+\.\S+/;
@@ -45,10 +47,10 @@ const LoginScreen = () => {
       const data = await response.json();
 
       if (data.status === 'success') {
-        // No need to store token as cookies handle session
-        console.log('Login successful!');
-        navigation.navigate('Home'); 
+        console.log('Login successful!'+ data.user);
+        dispatch({ type: 'LOGIN', payload: { user: data.user } });
         alert('Login successful!');
+        
       } else {
         setErrorMessage(data.message);
       }
